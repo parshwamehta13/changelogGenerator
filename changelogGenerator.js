@@ -47,10 +47,56 @@ class Tag {
         this.bugs = [];
         this.internalChanges = [];
         this.features = [];
+        this.misc = [];
     }
 }
 
+/**
+ * Returns `|` separted regex pattern
+ * @param {String} pattern 
+ */
+const patternToRegExp = function (pattern) {
+    if (!Array.isArray(pattern)) {
+      return patternToRegExp([pattern]);
+    }
+    return new RegExp([
+      '^',
+      pattern.join('|')
+    ].join(''), 'gi');
+};
+
+/**
+ * 
+ * @param {String} commitMessage 
+ */
+const checkCommitType = function (commitMessage){
+    const choreRegex = patternToRegExp(['chore:', 'chore\\([0-9a-zA-Z-_.]*\\):']);
+    const featRegex = patternToRegExp(['feat:', 'feat\\([0-9a-zA-Z-_.]*\\):']);
+    const fixRegex = patternToRegExp(['fix:', 'fix\\([0-9a-zA-Z-_.]*\\):']);
+    if (choreRegex.test(commitMessage)){
+        return 'chore';
+    } else if (featRegex.test(commitMessage)){
+        return 'feat';
+    } else if (fixRegex.test(commitMessage)) {
+        return 'fix';
+    } else {
+        return 'misc';
+    }
+};
+
+/**
+ * Appends content to file (fileName)
+ * @param {String} fileName
+ * @param {String} content 
+ */
+const appendToFileSync = (fileName, content) => {
+    let lineToBeAppended = content;
+    fs.appendFileSync(fileName, lineToBeAppended);
+    console.log(lineToBeAppended);
+}
+
 const tagCollection = [];
+const suffixers = ['chore(): ', 'chore: ', 'chore(xyz): ', 'fix(): ', 'fix: ', 'fix(xyz): ', 'perf(): ', 'perf: ', 'perf(xyz): ', ''];
 fs.unlink('CHANGELOG.md', (err) => {
     if (err) {
         console.log("WTF!!")
@@ -64,9 +110,6 @@ rl.on('line', (line) => {
     let isTagCommit = isSemver(line);
     let lineToBeAppended;
     if (isTagCommit) {
-        // lineToBeAppended = toTitle(line);
-        // fs.appendFileSync('CHANGELOG.md', lineToBeAppended);
-        // console.log(`## ${line}`);
         if (tagFlag){
             tagCollection.push(tagDoc);
         }
@@ -74,49 +117,52 @@ rl.on('line', (line) => {
         tagFlag = true;
     } else {
         if (line.length != 0){
-            // lineToBeAppended = toBullet(line);
-            // fs.appendFileSync('CHANGELOG.md', lineToBeAppended);
-            // console.log(`- ${line}`);
-            if (tagFlag){
-                tagDoc.features.push(line);
+            let suffixer = suffixers[Math.floor(Math.random()*suffixers.length)];
+            let tempLine = suffixer + line;
+            if (tagFlag) {
+                switch (checkCommitType(tempLine)) {
+                    case 'chore':
+                        tagDoc.internalChanges.push(line);
+                        break;
+                    case 'fix':
+                        tagDoc.bugs.push(line);
+                        break;
+                    case 'feat':
+                        tagDoc.features.push(line);
+                        break;
+                    default:
+                        tagDoc.misc.push(line);
+                }
             }
         }
     }
 });
 
 rl.on('close', ()=> {
+    console.log(tagCollection);
     for (tag of tagCollection){
-        let lineToBeAppended = toTitle(tag.tagNumber);
-        fs.appendFileSync('CHANGELOG.md', lineToBeAppended);
-        console.log(lineToBeAppended);
+        appendToFileSync('CHANGELOG.md', toTitle(tag.tagNumber));
         if (tag.features.length){
-            lineToBeAppended = toTitle('Features', 3);
-            fs.appendFileSync('CHANGELOG.md', lineToBeAppended);
-            console.log(lineToBeAppended);
+            appendToFileSync('CHANGELOG.md', toTitle('Features', 3));
             for (feature of tag.features){
-                lineToBeAppended = toBullet(feature);
-                fs.appendFileSync('CHANGELOG.md', lineToBeAppended);
-                console.log(lineToBeAppended);
+                appendToFileSync('CHANGELOG.md', toBullet(feature));
             }
         }
         if (tag.bugs.length){
-            lineToBeAppended = toTitle('Bug', 3);
-            fs.appendFileSync('CHANGELOG.md', lineToBeAppended);
-            console.log(lineToBeAppended);
+            appendToFileSync('CHANGELOG.md', toTitle('Bug Fixes', 3));
             for (bug of tag.bugs){
-                lineToBeAppended = toBullet(bug);
-                fs.appendFileSync('CHANGELOG.md', lineToBeAppended);
-                console.log(lineToBeAppended);
+                appendToFileSync('CHANGELOG.md', toBullet(bug));
             }
         }
         if (tag.internalChanges.length){
-            lineToBeAppended = toTitle('Internal Changes', 3);
-            fs.appendFileSync('CHANGELOG.md', lineToBeAppended);
-            console.log(lineToBeAppended);
+            appendToFileSync('CHANGELOG.md', toTitle('Internal Changes', 3));
             for (change of tag.internalChanges){
-                lineToBeAppended = toBullet(change);
-                fs.appendFileSync('CHANGELOG.md', lineToBeAppended);
-                console.log(lineToBeAppended);
+                appendToFileSync('CHANGELOG.md', toBullet(change));
+            }
+        }
+        if (tag.misc.length){
+            for (commit of tag.misc){
+                appendToFileSync('CHANGELOG.md', toBullet(commit));
             }
         }
     }
